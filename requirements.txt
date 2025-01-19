@@ -1,2 +1,3 @@
 pandas
 kaggle==1.6
+minio

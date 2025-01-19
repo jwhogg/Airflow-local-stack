@@ -5,10 +5,13 @@ services:
       - POSTGRES_USER=airflow
       - POSTGRES_PASSWORD=airflow
       - POSTGRES_DB=airflow
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
       retries: 5
+    networks:
+      - stack-network
 
   webserver:
     build:
@@ -21,10 +24,14 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
-      - AIRFLOW__WEBSERVER__SECRET_KEY=your-secret-key-here
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
       - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
       - AIRFLOW__WEBSERVER__WEB_SERVER_HOST=0.0.0.0
       - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - AIRFLOW_VAR_KAGGLE_USERNAME=${KAGGLE_USERNAME}
+      - AIRFLOW_VAR_KAGGLE_KEY=${KAGGLE_KEY}
+      - AIRFLOW_VAR_MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - AIRFLOW_VAR_MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     # command: webserver
     command: >
       bash -c "
@@ -34,7 +41,6 @@ services:
       "
     volumes:
       - ./dags:/opt/airflow/dags
-      - ./airflow.cfg:/opt/airflow/airflow.cfg
     ports:
       - "8080:8080"
     healthcheck:
@@ -42,6 +48,8 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+    networks:
+      - stack-network
 
   scheduler:
     build:
@@ -54,7 +62,40 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_WEBSERVER_SECRET_KEY}
+      - AIRFLOW_VAR_KAGGLE_USERNAME=${KAGGLE_USERNAME}
+      - AIRFLOW_VAR_KAGGLE_KEY=${KAGGLE_KEY}
+      - AIRFLOW_VAR_MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - AIRFLOW_VAR_MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     command: scheduler
     volumes:
       - ./dags:/opt/airflow/dags
-      - ./airflow.cfg:/opt/airflow/airflow.cfg
+    networks:
+      - stack-network
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - stack-network
+    volumes:
+      - 'minio_data:/data'
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      # - MINIO_DEFAULT_BUCKETS=data
+    command: minio server /data --console-address :9001
+
+# networks:
+#   minionetwork:
+#     driver: bridge
+networks:
+  stack-network:
+    driver: bridge
+
+volumes:
+  minio_data:
+    driver: local

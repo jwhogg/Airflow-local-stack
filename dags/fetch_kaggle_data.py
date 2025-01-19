@@ -1,10 +1,14 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+import logging
 import os
 import zipfile
 import pandas as pd
 from datetime import datetime, timedelta
+from io import BytesIO
+
+logger = logging.getLogger("airflow.task")
 
 # Function to authenticate Kaggle, download the dataset, and load it into a DataFrame
 def download_and_load_data():
@@ -17,21 +21,46 @@ def download_and_load_data():
     # Authenticate using Kaggle API
     kaggle.api.authenticate()
 
+    logger.info("Authenticated with Kaggle correctly")
+
+    logger.info("Downloading files...")
+
     # Download the dataset from Kaggle
     kaggle.api.dataset_download_files("nicholasjhana/energy-consumption-generation-prices-and-weather", path='.', unzip=True)
 
-    # Extract the downloaded zip file
-    with zipfile.ZipFile('energy-consumption-generation-prices-and-weather.zip', 'r') as zip_ref:
-        zip_ref.extractall('.')
+    energy_df = pd.read_csv('energy_dataset.csv')
 
-    # Assuming the dataset includes a CSV file (adjust filename if necessary)
-    csv_file = 'energy-consumption-generation-prices-and-weather.csv'  # Adjust this to the actual file name
-    
-    # Load the data into pandas
-    df = pd.read_csv(csv_file)
+    # Load the weather features dataset
+    weather_df = pd.read_csv('weather_features.csv')
 
-    # Print the head of the dataframe (or save it for further use)
-    print(df.head())
+    logger.info("Files downloaded successfully!")
+
+    print(energy_df.head())
+    print(weather_df.head())
+
+    from minio import Minio
+
+    client = Minio("minio:9000",
+        access_key="5MpW7tf4J1U4KKvzLm7X",
+        secret_key="bOpLlAAeSqJgfZBvLZFNRZA9o1eP5Mc7l7ea8R4V",
+        secure=False,
+    )
+
+    csv_bytes = energy_df.to_csv().encode('utf-8')
+    csv_buffer = BytesIO(csv_bytes)
+
+    logger.info("Attempting to store datasets to MinIO...")
+
+    client.put_object(
+        "datasets", "energy.csv", data=csv_buffer, length=len(csv_bytes), content_type="application/csv"
+    )
+
+    csv_bytes = weather_df.to_csv().encode('utf-8')
+    csv_buffer = BytesIO(csv_bytes)
+
+    client.put_object(
+        "datasets", "weather.csv", data=csv_buffer, length=len(csv_bytes), content_type="application/csv"
+    )
 
 # Define the DAG
 default_args = {
