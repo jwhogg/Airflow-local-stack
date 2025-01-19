@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
+import numpy as np
 
 logger = logging.getLogger("airflow.task")
 
@@ -49,7 +50,7 @@ def download_from_kaggle():
 
 
 def save_df_as_csv_to_minio(df, fileName):
-    csv_bytes = df.to_csv().encode('utf-8')
+    csv_bytes = df.to_csv(index=False).encode('utf-8')
     csv_buffer = BytesIO(csv_bytes)
 
     client.put_object(
@@ -78,7 +79,7 @@ def fetch_from_minio(filename, bucket_name):
     
     try:
         file_content = BytesIO(response.read())
-        df = pd.read_csv(file_content)
+        df = pd.read_csv(file_content, index_col=False)
     finally:
         response.close()
         response.release_conn()
@@ -89,8 +90,30 @@ def preprocess_data(**kwargs):
     df_list = [fetch_from_minio(filename, BUCKET_NAME) for filename in DATASET_FILES]
 
     #put preprocessing in here...
-    for df in df_list:
+    for df in df_list: #this for is only 2 items
         print(df.head())
+
+        # Drop the columns that only contain Nones and/or NaNs and all 0s
+        for col in df:
+            if df[col].isnull().all() or (df[col].sum() == 0):
+                df = df.drop(col, axis=1)
+        
+            # Set the time to datetime type and set as index
+
+            df['time'] = pd.to_datetime(df['time'], utc=True, infer_datetime_format=True)
+            df = df.set_index('time')
+
+            #check for duplicates and Nans
+
+            null_value_count = df.isnull().values.sum()
+            if null_value_count > 0:
+                df.interpolate(method='linear', limit_direction='forward', inplace=True, axis=0)
+
+            #convert any ints to floats
+            cols = df.select_dtypes(include=[np.int64]).columns
+            for col in cols:
+                df[col] = df[col].values.astype(np.float64)
+
 
 def file_exists(client: Minio, bucket_name: str, object_name: str) -> bool:
     try:
