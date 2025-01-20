@@ -1,7 +1,9 @@
-FROM apache/airflow:latest
-#using python3.8 by default with 'latest'
+FROM apache/airflow:2.7.3-python3.10
 
 USER root
+
+RUN mkdir -p /mlflow
+RUN chmod -R 777 /mlflow
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \

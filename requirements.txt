@@ -3,6 +3,7 @@ kaggle==1.6
 minio
 scikit-learn
 torch
-numpy==1.21.0
+numpy>=1.23.2,<2.0.0
 matplotlib
 minio
+mlflow

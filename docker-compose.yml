@@ -99,9 +99,11 @@ services:
       - stack-network
     volumes:
       - mlflow_data:/mlflow
-# networks:
-#   minionetwork:
-#     driver: bridge
+      - ./mlflow.db:/mlflow/mlflow.db
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+
 networks:
   stack-network:
     driver: bridge
