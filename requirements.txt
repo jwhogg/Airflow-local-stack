@@ -1,3 +1,8 @@
 pandas
 kaggle==1.6
 minio
+scikit-learn
+torch
+numpy==1.21.0
+matplotlib
+minio
